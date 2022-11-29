@@ -1,3 +1,5 @@
+import asyncio
+from asyncio import AbstractEventLoop
 from socket import socket, AF_INET, SOCK_STREAM
 from typing import List, Tuple
 from selectors import DefaultSelector, SelectorKey, EVENT_READ
@@ -38,6 +40,29 @@ class Server(socket):
             self.close()
 
 
+async def echo(connection: socket, loop: AbstractEventLoop) -> None:
+    while data := await loop.sock_recv(connection, 1024):  # В бесконечном цикле ожидаем данных от клиента
+        await loop.sock_sendall(connection, data)  # Получив данные, отправляем их обратно клиенту
+
+
+async def listen_for_connection(server_socket: socket, loop: AbstractEventLoop):
+    while True:
+        connection, address = await loop.sock_accept(server_socket)
+        connection.setblocking(False)
+        print(f"Получен запрос на подключение от {address}")
+        asyncio.create_task(echo(connection, loop))  # После получения запроса на подключение создаем задачу echo, ожидающую данные от клиента
+
+
+async def main():
+    server_socket = socket(AF_INET, SOCK_STREAM)
+    server_address = ('127.0.0.1', 8000)
+    server_socket.setblocking(False)
+    server_socket.bind(server_address)
+    server_socket.listen()
+    await listen_for_connection(server_socket, asyncio.get_event_loop())  # Запускаем сопрограмму прослушивания порта на предмет подключений
+
+
 if __name__ == "__main__":
-    server = Server("127.0.0.1", 8000)
-    server.long_pool()
+    # server = Server("127.0.0.1", 8000)
+    # server.long_pool()
+    asyncio.run(main())
